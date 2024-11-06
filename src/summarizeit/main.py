@@ -1,3 +1,5 @@
+# ./src/summarize_it/main.py
+
 import os
 import hashlib
 import uuid
@@ -93,10 +95,27 @@ def should_ignore(path, ignore_patterns):
     Returns:
         bool: True if the path should be ignored, False otherwise.
     """
+    # Normalize path separators to forward slashes
+    path = path.replace(os.sep, '/')
+    
     for pattern in ignore_patterns:
+        # Normalize pattern separators
+        pattern = pattern.replace(os.sep, '/')
+        
+        # Handle directory names (without wildcards)
+        if not any(c in pattern for c in '*?[]'):
+            # Check if the pattern matches any part of the path
+            path_parts = path.split('/')
+            if pattern in path_parts:
+                return True
+        
+        # Handle patterns with wildcards
         if fnmatch.fnmatch(path, pattern):
             return True
+            
     return False
+
+
 
 def main(root_dir, kv_file_path):
     kv_data = load_kv_store(kv_file_path)
