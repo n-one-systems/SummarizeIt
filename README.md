@@ -1,6 +1,6 @@
 # SummarizeIt
 
-![SummarizeIt Logo](https://github.com/n-one-systems/SummarizeIt/assets/logo.png)
+![SummarizeIt Logo](https://github.com/n-one-systems/SummarizeIt/blob/5783238ba2f0826753d62317f6389e4117297445/assets/logo_small.png)
 
 **Version 0.1.0**
 
