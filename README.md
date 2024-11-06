@@ -2,94 +2,159 @@
 
 ![SummarizeIt Logo](https://github.com/n-one-systems/SummarizeIt/blob/5783238ba2f0826753d62317f6389e4117297445/assets/logo_small.png)
 
-**Version 0.1.0**
+**Version 0.2.0**
 
-SummarizeIt is a lightweight Python tool that traverses a directory and creates a key-value (KV) index of files, providing useful metadata such as MD5 hashes, unique IDs, and concise documentation summaries for each code file. It aims to help developers maintain a consistent overview of their projects, identifying changes and keeping up-to-date with high-level documentation for each file.
+SummarizeIt is a Python tool designed to create and maintain documentation indices for your codebase. It traverses directories to build a key-value (KV) store containing file metadata, hashes, and high-level documentation summaries. This helps teams maintain an up-to-date overview of their project's structure and content.
 
 ## Features
 
-- **Directory Traversal**: Recursively indexes all files in a given directory and subdirectories.
-- **File Hashing**: Computes an MD5 hash for each file to detect changes.
-- **UUID Generation**: Generates a unique external ID for each indexed file.
-- **Automatic Summarization**: Uses the `get_code_file_documentation()` function to create brief summaries for code files.
-- **Ignore Indexing Rules**: Supports `.ignoreindexing` file to exclude files or directories from indexing, similar to `.gitignore`.
-- **Local Storage**: Stores KV information in a local JSON file for easy retrieval and update.
+- **Intelligent Directory Traversal**: Recursively processes files while following an allowedlist approach
+- **Change Detection**: Uses MD5 hashing to identify modified files
+- **Persistent File Tracking**: Maintains unique IDs for files even when they move or change
+- **Documentation Generation**: Creates high-level documentation summaries for code files
+- **Flexible Allowedlist Rules**: Uses `.summarizeitallowedlist` to specify which files to process
+- **Default Language Support**: Built-in support for common programming languages (Python, JavaScript, TypeScript, Go, Java, Ruby, PHP, Rust)
+- **Python 3.12+**: Takes advantage of modern Python features
 
 ## Installation
 
-To install SummarizeIt, clone the repository and ensure you have Python 3 installed:
-
 ```bash
-# Clone the repository
+
+# install from source
 git clone https://github.com/n-one-systems/SummarizeIt.git
-
-# Change to the project directory
 cd SummarizeIt
-
-# Install required dependencies (if any)
-pip install -r requirements.txt
+pip install .
 ```
 
 ## Usage
 
-To index a directory, run the `main.py` script:
+### Command Line
 
 ```bash
-python main.py [root_directory] [kv_store_file]
+# Using the installed package
+summarizeit
+
+# The tool will:
+# - Use current directory as root
+# - Create summarizeit.json in the root directory
+# - Use default allowedlist patterns if no .summarizeitallowedlist is found
 ```
 
-### Arguments:
+### Programmatic Usage
 
-- **root_directory**: The root directory of your project (defaults to the current directory if not provided).
-- **kv_store_file**: The file where the KV store will be saved (e.g., `kv_store.json`).
+```python
+from summarizeit import main
 
-Example usage:
+# Process current directory with default settings
+main()
+
+# Process specific directory with custom KV store location
+main("./my_project", "./docs/summarizeit.json")
+```
+
+## Configuration
+
+### Allowedlist Rules (`.summarizeitallowedlist`)
+
+Create a `.summarizeitallowedlist` file in your project root to specify which files to process. If no file is present, these default patterns are used:
+
+```
+*.py    # Python files
+*.js    # JavaScript files
+*.jsx   # React files
+*.ts    # TypeScript files
+*.tsx   # TypeScript React files
+*.go    # Go files
+*.java  # Java files
+*.rb    # Ruby files
+*.php   # PHP files
+*.rs    # Rust files
+```
+
+Special features:
+- Supports glob patterns (`*`, `?`, `[]`)
+- Comments start with `#`
+- Empty lines are ignored
+- Custom patterns can be added to process additional file types
+
+## KV Store Format
+
+The tool generates a JSON file with the following structure:
+
+```json
+{
+    "path/to/file.py": {
+        "hash": "md5_hash_of_file",
+        "external_id": "unique_uuid",
+        "high_level_documentation": "File documentation summary"
+    }
+}
+```
+
+## Default Exclusions
+
+The following directories are automatically excluded:
+- `.git`
+- `__pycache__`
+- `node_modules`
+- `venv`
+- `.venv`
+
+## Development
+
+### Requirements
+- Python 3.12 or higher
+- hatchling (for building)
+
+### Testing
 
 ```bash
-python main.py . kv_store.json
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests with coverage
+pytest
 ```
 
-## Ignore Indexing Rules
-
-SummarizeIt supports ignoring certain files and directories using an `.ignoreindexing` file. Add patterns to this file to specify files and directories that should be excluded from indexing.
-
-### Example `.ignoreindexing` File:
+### Project Structure
 
 ```
-# Ignore all text files
-*.txt
-
-# Ignore the build directory
-build/
-
-# Ignore all log files in the logs directory
-logs/*
+summarizeit/
+├── src/
+│   └── summarizeit/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── fs/
+│       │   ├── __init__.py
+│       │   ├── file_utils.py
+│       │   └── allowed_list.py
+│       ├── storage/
+│       │   ├── __init__.py
+│       │   └── kv_store.py
+│       └── docs/
+│           ├── __init__.py
+│           └── generator.py
+├── tests/
+├── pyproject.toml
+└── README.md
 ```
-
-## How It Works
-
-1. **Traverse Directory**: SummarizeIt traverses the root directory and its subdirectories.
-2. **Generate KV Data**: For each file, it calculates an MD5 hash, generates a UUID, and creates a documentation summary.
-3. **Store KV Data**: The data is stored in a JSON file for easy management and updates.
-4. **Update Changes**: Only new or modified files are updated in the KV store.
 
 ## License
 
-SummarizeIt is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+MIT License - See LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please fork the repository and submit a pull request.
-
-If you have any questions or suggestions, feel free to open an issue on GitHub.
-
-## Roadmap
-
-- **Version 0.2.0**: Planned support for multi-language code summaries and improved performance for large directories.
-
-## Acknowledgments
-
-This project is proudly developed by [N-One Systems](https://github.com/n-one-systems) to make code documentation and indexing simpler for developers.
+We welcome contributions! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
 ## Contact
-Please open an Issue 
+
+For bugs, questions, and discussions please use the [GitHub Issues](https://github.com/n-one-systems/SummarizeIt/issues).
+
+---
+Developed with ♥ by [N-ONE!](https://github.com/n-one-systems)
