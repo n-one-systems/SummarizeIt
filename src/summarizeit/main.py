@@ -1,160 +1,72 @@
-# ./src/summarize_it/main.py
+# ./src/summarizeit/main.py
 
 import os
-import hashlib
-import uuid
-import json
-import fnmatch
+from typing import Optional
+from .storage.kv_store import KVStore
+from .fs.file_utils import compute_md5_hash, get_relative_path
+from .fs.allowed_list import AllowedlistHandler
+from .docs.generator import get_code_file_documentation
 
-def get_code_file_documentation(path_of_file: str, programming_language: str = 'python') -> str:
+DEFAULT_KV_FILENAME = 'summarizeit.json'
+DEFAULT_ALLOWEDLIST_FILENAME = '.summarizeitallowedlist'
+
+def main(root_dir: Optional[str] = None, kv_file_path: Optional[str] = None) -> None:
     """
-    Generate a short summary of the code snippet.
+    Main function to process and index files in the given directory.
 
     Args:
-        path_of_file (str): The path to the code file.
-        programming_language (str, optional): The programming language of the code file.
-
-    Returns:
-        str: A short summary of the code.
+        root_dir (str, optional): Root directory to process. Defaults to current directory.
+        kv_file_path (str, optional): Path to the KV store file. Defaults to 'summarizeit.json' in root_dir.
     """
-    # Placeholder for actual implementation
-    return f"Summary of {os.path.basename(path_of_file)}"
-
-def compute_md5_hash(file_path):
-    """
-    Compute the MD5 hash of a file.
-
-    Args:
-        file_path (str): The path to the file.
-
-    Returns:
-        str: The MD5 hash of the file.
-    """
-    hasher = hashlib.md5()
-    with open(file_path, 'rb') as f:
-        # Read the file in chunks to handle large files
-        for chunk in iter(lambda: f.read(4096), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
-
-def load_kv_store(kv_file_path):
-    """
-    Load the KV store from a JSON file.
-
-    Args:
-        kv_file_path (str): The path to the KV store file.
-
-    Returns:
-        dict: The KV data.
-    """
-    if os.path.exists(kv_file_path):
-        with open(kv_file_path, 'r') as f:
-            return json.load(f)
-    else:
-        return {}
-
-def save_kv_store(kv_file_path, kv_data):
-    """
-    Save the KV data to a JSON file.
-
-    Args:
-        kv_file_path (str): The path to the KV store file.
-        kv_data (dict): The KV data to save.
-    """
-    with open(kv_file_path, 'w') as f:
-        json.dump(kv_data, f, indent=4)
-
-def load_ignore_patterns(ignore_file_path):
-    """
-    Load ignore patterns from the .ignoreindexing file.
-
-    Args:
-        ignore_file_path (str): The path to the .ignoreindexing file.
-
-    Returns:
-        list: A list of ignore patterns.
-    """
-    patterns = []
-    if os.path.exists(ignore_file_path):
-        with open(ignore_file_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                # Skip empty lines and comments
-                if line and not line.startswith('#'):
-                    patterns.append(line)
-    return patterns
-
-def should_ignore(path, ignore_patterns):
-    """
-    Check if a path should be ignored based on the ignore patterns.
-
-    Args:
-        path (str): The path to check.
-        ignore_patterns (list): A list of ignore patterns.
-
-    Returns:
-        bool: True if the path should be ignored, False otherwise.
-    """
-    # Normalize path separators to forward slashes
-    path = path.replace(os.sep, '/')
+    # Set defaults
+    if root_dir is None:
+        root_dir = os.getcwd()
     
-    for pattern in ignore_patterns:
-        # Normalize pattern separators
-        pattern = pattern.replace(os.sep, '/')
-        
-        # Handle directory names (without wildcards)
-        if not any(c in pattern for c in '*?[]'):
-            # Check if the pattern matches any part of the path
-            path_parts = path.split('/')
-            if pattern in path_parts:
-                return True
-        
-        # Handle patterns with wildcards
-        if fnmatch.fnmatch(path, pattern):
-            return True
-            
-    return False
+    if kv_file_path is None:
+        kv_file_path = os.path.join(root_dir, DEFAULT_KV_FILENAME)
 
+    # Initialize KV store
+    kv_store = KVStore(kv_file_path)
+    
+    # Initialize allowedlist handler
+    allowedlist_path = os.path.join(root_dir, DEFAULT_ALLOWEDLIST_FILENAME)
+    allowedlist = AllowedlistHandler(allowedlist_path)
+    
+    # Print current patterns being used
+    print("Using allowedlist patterns:", ", ".join(sorted(allowedlist.get_patterns())))
 
-
-def main(root_dir, kv_file_path):
-    kv_data = load_kv_store(kv_file_path)
-    updated_kv_data = kv_data.copy()
-    ignore_file_path = os.path.join(root_dir, '.ignoreindexing')
-    ignore_patterns = load_ignore_patterns(ignore_file_path)
-
+    # Walk through directory
     for dirpath, dirnames, filenames in os.walk(root_dir):
-        # Modify dirnames in-place to skip ignored directories
-        dirnames[:] = [d for d in dirnames if not should_ignore(os.path.relpath(os.path.join(dirpath, d), root_dir), ignore_patterns)]
+        # Skip common non-code directories by default
+        dirnames[:] = [d for d in dirnames if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+        
         for filename in filenames:
             file_path = os.path.join(dirpath, filename)
-            rel_path = os.path.relpath(file_path, root_dir)
+            rel_path = get_relative_path(file_path, root_dir)
 
-            # Skip files that match ignore patterns
-            if should_ignore(rel_path, ignore_patterns):
+            # Skip if file doesn't match allowedlist
+            if not allowedlist.should_include(rel_path):
                 continue
 
-            # Skip the KV file itself to avoid processing it
+            # Skip the KV file itself
             if os.path.abspath(file_path) == os.path.abspath(kv_file_path):
                 continue
 
             file_hash = compute_md5_hash(file_path)
-            # Check if file is new or has changed
-            if rel_path not in kv_data or kv_data[rel_path]['hash'] != file_hash:
-                # Generate new UUID if file is new
-                external_id = kv_data.get(rel_path, {}).get('external_id', str(uuid.uuid4()))
+            
+            # Process file if it's new or changed
+            if kv_store.has_changed(rel_path, file_hash):
+                print(f"Processing: {rel_path}")
                 high_level_doc = get_code_file_documentation(file_path)
-                updated_kv_data[rel_path] = {
-                    'hash': file_hash,
-                    'external_id': external_id,
-                    'high_level_documentation': high_level_doc
-                }
-    # Save updated KV data
-    save_kv_store(kv_file_path, updated_kv_data)
+                kv_store.update_file_entry(rel_path, file_hash, high_level_doc)
+
+    # Save changes
+    kv_store.save()
     print(f"KV store updated and saved to {kv_file_path}")
 
-if __name__ == "__main__":
-    root_directory = '.'  # Replace with your project root directory
-    kv_store_file = 'kv_store.json'  # KV store file name
-    main(root_directory, kv_store_file)
+def cli():
+    """Command line interface entry point"""
+    main()
 
+if __name__ == "__main__":
+    cli()
